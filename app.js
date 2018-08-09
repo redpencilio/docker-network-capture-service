@@ -10,7 +10,7 @@ const shareToPath = function(share) {
 const containers = async function() {
   const result = await query(`
         PREFIX docker: <https://w3.org/ns/bde/docker#>
-        SELECT ?uri ?id ?name ?stateURI ?status ?project
+        SELECT ?uri ?id ?name ?project
         FROM ${sparqlEscapeUri(process.env.MU_APPLICATION_GRAPH)}
         WHERE {
           ?uri a docker:Container;
@@ -22,10 +22,11 @@ const containers = async function() {
             ?label docker:key "com.docker.compose.project";
                    docker:value ?project.
         }
+        ${process.env.CAPTURE_CONTAINER_FILTER ? process.env.CAPTURE_CONTAINER_FILTER  : '' }
         FILTER(
           NOT EXISTS {
-             ?uri docker:label ?label.
-             ?label docker:key "mu.semte.ch.networkMonitor".
+             ?uri docker:label ?networkLabel.
+             ?networkLabel docker:key "mu.semte.ch.networkMonitor".
           }
         )
         }
