@@ -51,7 +51,8 @@ const docker = {
   listContainers:  listContainers,
   pull: pull,
   removeContainer: remove,
-  createContainer: async (obj) => dockerode.createContainer(obj)
+  createContainer: async (obj) => dockerode.createContainer(obj),
+  getContainer: (id) => dockerode.getContainer(id)
 };
 
 export default docker;

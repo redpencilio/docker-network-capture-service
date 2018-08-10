@@ -38,7 +38,7 @@ class NetworkMonitor {
     return objects;
   }
 
-  async remove(dockerSocket) {
+  async remove() {
     await update(`
         ${PREFIXES}
         WITH ${sparqlEscapeUri(process.env.MU_APPLICATION_GRAPH)}

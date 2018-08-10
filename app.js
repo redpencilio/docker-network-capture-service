@@ -2,7 +2,7 @@ import { app, query, uuid, sparqlEscapeString, sparqlEscapeUri } from 'mu';
 import docker from './docker';
 import NetworkMonitor from './network-monitor';
 
-
+const imageName = 'crccheck/tcpdump';
 const shareToPath = function(share) {
   return share.replace(/^share:\/\//,'/pcap/');
 };
@@ -80,11 +80,7 @@ const awaitDocker = async function() {
 
 const createMonitorFor = async function(container) {
   console.log('creating monitor for ' + container.name);
-  const imageName = 'crccheck/tcpdump';
-  const id = uuid();
   const monitor = new NetworkMonitor({
-    id: id,
-    uri: `http://mu.semte.ch/network-monitors/${id}`,
     status: 'running',
     dockerContainer: container.uri
   });
@@ -93,7 +89,7 @@ const createMonitorFor = async function(container) {
     AttachStdin: false,
     AttachStdout: true,
     AttachStderr: true,
-    Labels: { "mu.semte.ch.networkMonitor": monitor.uri},
+    Labels: { "mu.semte.ch.networkMonitor": monitor.dockerContainer},
     HostConfig: {
       NetworkMode: `container:${container.id}`,
       Binds: [`${process.env.PCAP_VOLUME}:/data`]
@@ -107,6 +103,8 @@ const createMonitorFor = async function(container) {
   try {
     await monitorContainer.start();
     monitor.status = "started";
+    monitor.id = monitorContainer.id;
+    monitor.uri = `http://mu.semte.ch/network-monitors/${monitorContainer.id}`;
     await monitor.save();
   }
   catch(error) {
@@ -131,11 +129,14 @@ const monitorAllTheThings = async function() {
   }
   // remaining monitors are for containers that are no longer running, kill them
   for (let monitor of runningNetworkMonitors) {
-    monitor.remove(docker);
+    await monitor.remove();
+    const container = docker.getContainer(monitor.id);
+    await container.stop();
+    await docker.removeContainer(container);
   }
 };
 
-const pulledTCPDump = false;
+var pulledTCPDump = false;
 const program = async function() {
   // wait for the docker endpoint and sparql endpoint to be available
   await awaitDb();
