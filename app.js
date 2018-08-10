@@ -57,7 +57,7 @@ const awaitGeneric = async function(successMessage, errorMessage, call) {
       console.info(successMessage);
       return;
     }
-    catch(e) { 
+    catch(e) {
       console.warn(e);
       console.warn(`ERROR: ${errorMessage}, waiting ${delay} seconds and retrying`);
       await timeout(1000*delay);
@@ -81,7 +81,6 @@ const awaitDocker = async function() {
 const createMonitorFor = async function(container) {
   console.log('creating monitor for ' + container.name);
   const imageName = 'crccheck/tcpdump';
-//  await docker.pull(imageName);
   const id = uuid();
   const monitor = new NetworkMonitor({
     id: id,
@@ -136,11 +135,16 @@ const monitorAllTheThings = async function() {
   }
 };
 
+const pulledTCPDump = false;
 const program = async function() {
   // wait for the docker endpoint and sparql endpoint to be available
   await awaitDb();
   await awaitDocker();
-
+  if (!pulledTCPDump) {
+    console.log('pulling latest tcpdump');
+    await docker.pull(imageName);
+    pulledTCPDump = true;
+  }
   // sync docker state to db
   await monitorAllTheThings();
   setTimeout(program, process.env.CAPTURE_SYNC_INTERVAL);
