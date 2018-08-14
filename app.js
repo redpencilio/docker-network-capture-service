@@ -1,10 +1,11 @@
+import fs from 'fs-extra';
 import { app, query, uuid, sparqlEscapeString, sparqlEscapeUri } from 'mu';
 import docker from './docker';
 import NetworkMonitor from './network-monitor';
 
 const imageName = 'crccheck/tcpdump';
 const shareToPath = function(share) {
-  return share.replace(/^share:\/\//,'/pcap/');
+  return share.replace(/^share:\/\//,'/data/');
 };
 
 const containers = async function() {
@@ -82,8 +83,10 @@ const createMonitorFor = async function(container) {
   console.log('creating monitor for ' + container.name);
   const monitor = new NetworkMonitor({
     status: 'running',
-    dockerContainer: container.uri
+    dockerContainer: container.uri,
+    path: `share://${container.name.slice(1)}/`
   });
+  fs.mkdirp(shareToPath(monitor.path));
   const monitorContainer = await docker.createContainer({
     Image: imageName,
     AttachStdin: false,
@@ -95,7 +98,7 @@ const createMonitorFor = async function(container) {
       Binds: [`${process.env.PCAP_VOLUME}:/data`]
     },
     Tty: false,
-    Cmd: ["-i","any", "--immediate-mode", '-w', `/data/${container.name.slice(1)}-\%FT\%H\%M\%S.pcap`, "-G 60"],
+    Cmd: ["-i","any", '-w', `${shareToPath(monitor.path)}\%FT\%H\%M\%S-${container.name.slice(1)}.pcap`, "-G 60"],
     OpenStdin: false,
     StdinOnce: false,
     name: `${container.name}-tcpdump`
@@ -124,7 +127,7 @@ const monitorAllTheThings = async function() {
     }
     else {
       // not monitoring this container yet, start one
-      createMonitorFor(container);
+      await createMonitorFor(container);
     }
   }
   // remaining monitors are for containers that are no longer running, kill them
@@ -136,14 +139,36 @@ const monitorAllTheThings = async function() {
   }
 };
 
-var pulledTCPDump = false;
+var pulledTCPDump = false; 
+
+const cleanup = async function() {
+  for (let monitor of await NetworkMonitor.findAll()) {
+    console.debug(`removing monitor: ${monitor.id}`);
+    await monitor.remove();
+    const container = docker.getContainer(monitor.id);
+    try {
+      await container.stop();
+    }
+    catch(e) {}
+    finally {
+      await docker.removeContainer(container);
+    }
+  }
+  console.debug('cleanup done');
+};
+
 const program = async function() {
   // wait for the docker endpoint and sparql endpoint to be available
   await awaitDb();
   await awaitDocker();
   if (!pulledTCPDump) {
     console.log('pulling latest tcpdump');
-    await docker.pull(imageName);
+    try {
+      await docker.pull(imageName);
+    }
+    catch(e) {
+      console.error('ERROR: FAILED TO PULL ' + imageName);
+    }
     pulledTCPDump = true;
   }
   // sync docker state to db
@@ -151,4 +176,5 @@ const program = async function() {
   setTimeout(program, process.env.CAPTURE_SYNC_INTERVAL);
 };
 
-program();
+awaitDb().then( () => awaitDocker().then( () => cleanup().then ( () => program())));
+

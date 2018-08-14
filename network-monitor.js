@@ -5,9 +5,10 @@ PREFIX logger:<http://mu.semte.ch/vocabularies/ext/docker-logger/>
 PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
 `;
 class NetworkMonitor {
-  constructor({id, uri, status, dockerContainer, persisted}) {
+  constructor({id, uri, status, dockerContainer, persisted, path}) {
     this.id = id;
     this.uri = uri;
+    this.path = path;
     this.status = status ? status : "created";
     this.dockerContainer = dockerContainer;
     this._persisted = persisted ? persisted : false;
@@ -16,12 +17,13 @@ class NetworkMonitor {
   static async findAll(status=null) {
     const result = await query(`
         ${PREFIXES}
-        SELECT ?id ?uri ?status ?dockerContainer
+        SELECT ?id ?uri ?status ?dockerContainer ?path
         FROM ${sparqlEscapeUri(process.env.MU_APPLICATION_GRAPH)}
         WHERE {
           ?uri a logger:NetworkMonitor;
                mu:uuid ?id;
                logger:status ?status;
+               logger:path ?path;
                logger:monitors ?dockerContainer.
         ${ status ? `BIND(${sparqlEscapeString(status)} as ?status)` : ''}
         }
@@ -37,7 +39,7 @@ class NetworkMonitor {
     });
     return objects;
   }
-
+ 
   async remove() {
     await update(`
         ${PREFIXES}
@@ -46,12 +48,14 @@ class NetworkMonitor {
             ${sparqlEscapeUri(this.uri)} a logger:NetworkMonitor;
                mu:uuid ?id;
                logger:status ?status;
+               logger:path ?path;
                logger:monitors ?dockerContainer.
         }
         WHERE {
             ${sparqlEscapeUri(this.uri)} a logger:NetworkMonitor;
                mu:uuid ?id;
                logger:status ?status;
+               logger:path ?path;
                logger:monitors ?dockerContainer.
         }`);
   }
@@ -73,6 +77,7 @@ class NetworkMonitor {
             ${sparqlEscapeUri(this.uri)} a logger:NetworkMonitor;
                                     mu:uuid ${sparqlEscapeString(this.id)};
                                     logger:status ${sparqlEscapeString(this.status)};
+                                    logger:path ${sparqlEscapeUri(this.path)};
                                     logger:monitors ${sparqlEscapeUri(this.dockerContainer)}.
           }
        }
@@ -81,23 +86,26 @@ class NetworkMonitor {
   async _update() {
     await update(`
         ${PREFIXES}
-        WITH ${sparqlEscapeUri(process.env.MU_APPLICATION_GRAPH)} 
+        WITH ${sparqlEscapeUri(process.env.MU_APPLICATION_GRAPH)}
         DELETE {
             ${sparqlEscapeUri(this.uri)} a logger:NetworkMonitor;
                mu:uuid ?id;
                logger:status ?status;
-               logger:monitors ?dockerContainer,
+               logger:path ?path;
+               logger:monitors ?dockerContainer.
         }
         INSERT {
             ${sparqlEscapeUri(this.uri)} a logger:NetworkMonitor;
                                     mu:uuid ${sparqlEscapeString(this.id)};
                                     logger:status ${sparqlEscapeString(this.status)};
+                                    logger:path ${sparqlEscapeUri(this.path)};
                                     logger:monitors ${sparqlEscapeUri(this.dockerContainer)}.
         }
         WHERE {
             ${sparqlEscapeUri(this.uri)} a logger:NetworkMonitor;
                mu:uuid ?id;
                logger:status ?status;
+               logger:path ?path;
                logger:monitors ?dockerContainer.
         }
     `);
