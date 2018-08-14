@@ -86,7 +86,8 @@ const createMonitorFor = async function(container) {
     dockerContainer: container.uri,
     path: `share://${container.name.slice(1)}/`
   });
-  fs.mkdirp(shareToPath(monitor.path));
+  await fs.mkdirp(shareToPath(monitor.path));
+  await fs.chmod(shareToPath(monitor.path), 0o777 ); // TODO: fix this, currently because of a bad mix of host and namespaced containers
   const monitorContainer = await docker.createContainer({
     Image: imageName,
     AttachStdin: false,
