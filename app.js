@@ -88,33 +88,39 @@ const createMonitorFor = async function(container) {
   });
   await fs.mkdirp(shareToPath(monitor.path));
   await fs.chmod(shareToPath(monitor.path), 0o777 ); // TODO: fix this, currently because of a bad mix of host and namespaced containers
-  const monitorContainer = await docker.createContainer({
-    Image: imageName,
-    AttachStdin: false,
-    AttachStdout: true,
-    AttachStderr: true,
-    Labels: { "mu.semte.ch.networkMonitor": monitor.dockerContainer},
-    HostConfig: {
-      NetworkMode: `container:${container.id}`,
-      Binds: [`${process.env.PCAP_VOLUME}:/data`]
-    },
-    Tty: false,
-    Cmd: ["-i","any", '-w', `${shareToPath(monitor.path)}\%FT\%H\%M\%S-${container.name.slice(1)}.pcap`, "-G 60"],
-    OpenStdin: false,
-    StdinOnce: false,
-    name: `${container.name}-tcpdump`
-  });
   try {
-    await monitorContainer.start();
-    monitor.status = "started";
-    monitor.id = monitorContainer.id;
-    monitor.uri = `http://mu.semte.ch/network-monitors/${monitorContainer.id}`;
-    await monitor.save();
+    const monitorContainer = await docker.createContainer({
+      Image: imageName,
+      AttachStdin: false,
+      AttachStdout: true,
+      AttachStderr: true,
+      Labels: { "mu.semte.ch.networkMonitor": monitor.dockerContainer},
+      HostConfig: {
+        NetworkMode: `container:${container.id}`,
+        Binds: [`${process.env.PCAP_VOLUME}:/data`]
+      },
+      Tty: false,
+      Cmd: ["-i","any", '-w', `${shareToPath(monitor.path)}\%FT\%H\%M\%S-${container.name.slice(1)}.pcap`, "-G 60"],
+      OpenStdin: false,
+      StdinOnce: false,
+      name: `${container.name}-tcpdump`
+    });
+    try {
+      await monitorContainer.start();
+      monitor.status = "started";
+      monitor.id = monitorContainer.id;
+      monitor.uri = `http://mu.semte.ch/network-monitors/${monitorContainer.id}`;
+      await monitor.save();
+    }
+    catch(error) {
+      console.log(`ERROR starting monitor for ${container.name}`);
+      console.log(error);
+      await docker.removeContainer(monitorContainer);
+    }
   }
   catch(error) {
-    console.log(`ERROR creating monitor for ${container.name}`);
+    console.log(`ERROR: failed to create monitor for ${container.name}`);
     console.log(error);
-    await docker.removeContainer(monitorContainer);
   }
 };
 const monitorAllTheThings = async function() {
@@ -140,7 +146,7 @@ const monitorAllTheThings = async function() {
   }
 };
 
-var pulledTCPDump = false; 
+var pulledTCPDump = false;
 
 const cleanup = async function() {
   for (let monitor of await NetworkMonitor.findAll()) {
@@ -152,7 +158,10 @@ const cleanup = async function() {
     }
     catch(e) {}
     finally {
-      await docker.removeContainer(container);
+      try {
+        await docker.removeContainer(container);
+      }
+      catch(e) {}
     }
   }
   console.debug('cleanup done');
