@@ -134,15 +134,23 @@ const monitorAllTheThings = async function() {
     }
     else {
       // not monitoring this container yet, start one
-      await createMonitorFor(container);
+      try {
+        await createMonitorFor(container);
+      } catch( error ) {
+        console.log(`Could not create monitor for ${container.uri}`);
+      }
     }
   }
   // remaining monitors are for containers that are no longer running, kill them
   for (let monitor of runningNetworkMonitors) {
-    await monitor.remove();
-    const container = docker.getContainer(monitor.id);
-    await container.stop();
-    await docker.removeContainer(container);
+    try {
+      await monitor.remove();
+      const container = docker.getContainer(monitor.id);
+      await container.stop();
+      await docker.removeContainer(container);
+    } catch( error ) {
+      console.log(`Could not clear container ${monitor.dockerContainer}`);
+    }
   }
 };
 
