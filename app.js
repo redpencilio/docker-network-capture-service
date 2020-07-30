@@ -3,7 +3,7 @@ import { app, query, uuid, sparqlEscapeString, sparqlEscapeUri } from 'mu';
 import docker from './docker';
 import NetworkMonitor from './network-monitor';
 
-const imageName = 'crccheck/tcpdump';
+const imageName = 'redpencil/http-logger-packetbeat-service';
 const shareToPath = function(share) {
   return share.replace(/^share:\/\//,'/data/');
 };
@@ -41,6 +41,7 @@ const containers = async function() {
     });
     return obj;
   });
+  console.info(objects)
   return objects;
 };
 
@@ -86,8 +87,6 @@ const createMonitorFor = async function(container) {
     dockerContainer: container.uri,
     path: `share://${container.name.slice(1)}/`
   });
-  await fs.mkdirp(shareToPath(monitor.path));
-  await fs.chmod(shareToPath(monitor.path), 0o777 ); // TODO: fix this, currently because of a bad mix of host and namespaced containers
   try {
     const monitorContainer = await docker.createContainer({
       Image: imageName,
@@ -97,13 +96,16 @@ const createMonitorFor = async function(container) {
       Labels: { "mu.semte.ch.networkMonitor": monitor.dockerContainer},
       HostConfig: {
         NetworkMode: `container:${container.id}`,
-        Binds: [`${process.env.PCAP_VOLUME}:/data`]
+        CapAdd: ["NET_ADMIN", "NET_RAW"]
       },
+      Env: ["LOGSTASH_URL=logstash:5044",
+            `COMPOSE_PROJECT=${container.project}`,
+            `COMPOSE_SERVICE=${container.name}`,
+            `COMPOSE_CONTAINER_ID=${container.id}`],
       Tty: false,
-      Cmd: ["-i","any", '-w', `${shareToPath(monitor.path)}\%FT\%H\%M\%S-${container.name.slice(1)}.pcap`, "-G 60"],
       OpenStdin: false,
       StdinOnce: false,
-      name: `${container.name}-tcpdump`
+      name: `${container.name}-packetbeat`
     });
     try {
       await monitorContainer.start();
@@ -154,7 +156,7 @@ const monitorAllTheThings = async function() {
   }
 };
 
-var pulledTCPDump = false;
+var pulledImage = false;
 
 const cleanup = async function() {
   for (let monitor of await NetworkMonitor.findAll()) {
@@ -179,7 +181,7 @@ const program = async function() {
   // wait for the docker endpoint and sparql endpoint to be available
   await awaitDb();
   await awaitDocker();
-  if (!pulledTCPDump) {
+  if (!pulledImage) {
     console.log('pulling latest tcpdump');
     try {
       await docker.pull(imageName);
@@ -187,7 +189,7 @@ const program = async function() {
     catch(e) {
       console.error('ERROR: FAILED TO PULL ' + imageName);
     }
-    pulledTCPDump = true;
+    pulledImage = true;
   }
   // sync docker state to db
   await monitorAllTheThings();
