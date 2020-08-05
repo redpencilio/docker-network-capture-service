@@ -57,7 +57,12 @@ class NetworkMonitor {
                docker:state/docker:status ?status.
         }
     `);
-    return result.results.bindings[0]["status"].value;
+    if(result.results.bindings.length > 0) {
+      return result.results.bindings[0]["status"].value;
+    } else {
+      console.error(`Cannot find status for ${this.id}`)
+      return "none";
+    }
   }
 
   async save() {
