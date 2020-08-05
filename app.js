@@ -3,7 +3,7 @@ import { app, query, uuid, sparqlEscapeString, sparqlEscapeUri } from 'mu';
 import docker from './docker';
 import NetworkMonitor from './network-monitor';
 
-const imageName = 'redpencil/http-logger-packetbeat-service';
+const imageName = process.env.MONITOR_IMAGE;
 
 const monitor = async function() {
   const runningNetworkMonitors = await NetworkMonitor.findAll("running");
