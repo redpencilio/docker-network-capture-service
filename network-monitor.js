@@ -9,7 +9,7 @@ class NetworkMonitor {
     this.id = id;
     this.uri = uri;
     this.path = path;
-    this.status = status ? status : "created";
+    this.status = status ? status : "running";
     this.dockerContainer = dockerContainer;
     this._persisted = persisted ? persisted : false;
   }
@@ -24,8 +24,8 @@ class NetworkMonitor {
                mu:uuid ?id;
                logger:status ?status;
                logger:path ?path;
-               logger:monitors ?dockerContainer.
-        ${ status ? `BIND(${sparqlEscapeString(status)} as ?status)` : ''}
+               logger:monitors ?dockerContainer
+        ${ status ? `FILTER(?status = ${sparqlEscapeString(status)})` : ''}
         }
     `);
     const bindingKeys = result.head.vars;
@@ -41,23 +41,23 @@ class NetworkMonitor {
   }
  
   async remove() {
-    await update(`
-        ${PREFIXES}
-        WITH ${sparqlEscapeUri(process.env.MU_APPLICATION_GRAPH)}
-        DELETE {
-            ${sparqlEscapeUri(this.uri)} a logger:NetworkMonitor;
-               mu:uuid ?id;
-               logger:status ?status;
-               logger:path ?path;
-               logger:monitors ?dockerContainer.
-        }
+    this.status = "removed";
+    this.save();
+  }
+
+  // Fetch the status of the container this network monitor runs on.
+  async containerStatus() {
+    const result = await query(`
+        PREFIX docker: <https://w3.org/ns/bde/docker#>
+        SELECT ?status
+        FROM ${sparqlEscapeUri(process.env.MU_APPLICATION_GRAPH)}
         WHERE {
-            ${sparqlEscapeUri(this.uri)} a logger:NetworkMonitor;
-               mu:uuid ?id;
-               logger:status ?status;
-               logger:path ?path;
-               logger:monitors ?dockerContainer.
-        }`);
+          ?uri a docker:Container;
+               docker:id "${this.id}";
+               docker:state/docker:status ?status.
+        }
+    `);
+    return result.results.bindings[0]["status"].value;
   }
 
   async save() {
