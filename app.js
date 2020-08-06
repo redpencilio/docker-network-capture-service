@@ -102,6 +102,13 @@ const createMonitorFor = async function(container) {
     });
     try {
       await monitorContainer.start();
+
+      docker
+        .getNetwork( "app-http-logger_default" )
+        .connect( {
+          container: container.id
+        }, () => { return; } );
+
       monitor.status = "running";
       monitor.id = monitorContainer.id;
       monitor.uri = `http://mu.semte.ch/network-monitors/${monitorContainer.id}`;

@@ -52,7 +52,8 @@ const docker = {
   pull: pull,
   removeContainer: remove,
   createContainer: async (obj) => dockerode.createContainer(obj),
-  getContainer: (id) => dockerode.getContainer(id)
+  getContainer: (id) => dockerode.getContainer(id),
+  getNetwork: (id, cb) => dockerode.getNetwork(id, cb)
 };
 
 export default docker;
