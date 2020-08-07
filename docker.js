@@ -29,23 +29,52 @@ const pull = function(image){
           else
             resolve(output);
         }
-
       }
-
     });
   });
 };
 
-const remove = function(container) {
+const remove = function(container, forceRemove=false) {
   return new Promise( (resolve, reject) => {
-    container.remove(function (err, data) {
-      if (err)
-        reject(err);
-      else
-        resolve(data);
-  });
+    container.remove({force: forceRemove},
+                     function (err, data) {
+                       if (err) {
+                         reject(err);
+                       }
+                       else {
+                         resolve(data);
+                       }
+                     });
   });
 };
+
+const connectContainerTo = function(containerId, networkName) {
+  return new Promise( (resolve, reject) => {
+    dockerode.getNetwork(networkName)
+             .connect({Container: containerId},
+                      (err, data) => {
+                        if(err) {
+                          reject(err);
+                        } else {
+                          resolve(data);
+                        }
+                      });
+  });
+}
+
+const disconnectContainerFrom = function(containerId, networkName) {
+  return new Promise( (resolve, reject) => {
+    dockerode.getNetwork(networkName)
+             .disconnect({Container: containerId},
+                         (err, data) => {
+                           if(err) {
+                             reject(err);
+                           } else {
+                             resolve(data);
+                           }
+                         });
+  });
+}
 
 const docker = {
   listContainers:  listContainers,
@@ -53,7 +82,8 @@ const docker = {
   removeContainer: remove,
   createContainer: async (obj) => dockerode.createContainer(obj),
   getContainer: (id) => dockerode.getContainer(id),
-  getNetwork: (id, cb) => dockerode.getNetwork(id, cb)
+  connectContainerTo: connectContainerTo,
+  disconnectContainerFrom: disconnectContainerFrom
 };
 
 export default docker;

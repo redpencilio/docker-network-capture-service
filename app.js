@@ -19,27 +19,12 @@ const monitor = async function() {
       if (status != "running" && status != "created") {
         // The monitor crashed, restart it.
         console.log(`Restarting monitor for ${container.uri}`);
-        let monitorContainer = await docker.getContainer(attachedMonitor.id);
 
         // Try to remove the container if it still exists.
-        try {
-          try {
-            console.log("Stopping crashed monitor container...");
-            await monitorContainer.stop();
-          } catch(error) {
-            // Error here means the container is already stopped, which we can ignore.
-          }
-          console.log("Removing crashed monitor container...");
-          await monitorContainer.remove({force: true});
-        } catch(error) {
-          console.error("Failed to remove container, restarting anyway...");
-          console.error(error);
-        }
+        await removeMonitor(attachedMonitor);
 
         // Start a new monitor.
         try {
-          console.log("Removing crashed monitor...");
-          await attachedMonitor.remove();
           console.log("Starting new monitor...");
           await createMonitorFor(container);
           console.log(`Monitor restarted for ${container.uri}`);
@@ -61,15 +46,7 @@ const monitor = async function() {
   }
   // remaining monitors are for containers that are no longer running or logged, kill them
   for (let monitor of runningNetworkMonitors) {
-    try {
-      await monitor.remove();
-      const container = docker.getContainer(monitor.id);
-      await container.stop();
-      await docker.removeContainer(container);
-    } catch( error ) {
-      console.error(`Could not clear monitor ${monitor.dockerContainer}`);
-      console.error(error);
-    }
+    removeMonitor(monitor);
   }
 };
 
@@ -78,7 +55,6 @@ const createMonitorFor = async function(container) {
   const monitor = new NetworkMonitor({
     status: 'creating',
     dockerContainer: container.uri,
-    path: `share://${container.name.slice(1)}/`
   });
   try {
     const monitorContainer = await docker.createContainer({
@@ -98,16 +74,16 @@ const createMonitorFor = async function(container) {
       Tty: false,
       OpenStdin: false,
       StdinOnce: false,
-      name: `${container.name}-packetbeat`
+      name: `${container.name}-monitor`
     });
     try {
-      await monitorContainer.start();
 
-      docker
-        .getNetwork( "app-http-logger_default" )
-        .connect( {
-          container: container.id
-        }, () => { return; } );
+      // The monitor container completely shares its network with the logged container,
+      // so to ensure a path to the logstash service we have to add the *logged* container
+      // to this network.
+      await docker.connectContainerTo(container.id, process.env.LOGSTASH_NETWORK);
+
+      await monitorContainer.start();
 
       monitor.status = "running";
       monitor.id = monitorContainer.id;
@@ -117,7 +93,14 @@ const createMonitorFor = async function(container) {
     catch(error) {
       console.error(`ERROR: Failed to start monitor for ${container.name}`);
       console.error(error);
-      await docker.removeContainer(monitorContainer);
+
+      // Clean up to make sure no connection or network is left behind.
+      try {
+        await docker.removeContainer(monitorContainer, true);
+      } catch(error) {}
+      try {
+        await docker.disconnectContainerFrom(container.id, process.env.LOGSTASH_NETWORK);
+      } catch(error) {}
     }
   }
   catch(error) {
@@ -126,34 +109,57 @@ const createMonitorFor = async function(container) {
   }
 };
 
+const removeMonitor = async function(monitor) {
+  const monitorContainer = docker.getContainer(monitor.id);
+  const loggedContainer = await monitor.loggedContainerId();
+
+  console.log(`Removing monitor: ${monitor.uri}`);
+
+  // Try to stop the monitor container first. This will fail if it has already been stopped.
+  try {
+    console.log(`Stopping monitor container: ${monitorContainer.id}`);
+    await monitorContainer.stop({t: 3}); // 3 second deadline for sub-containers.
+    console.log(`Stopped monitor container: ${monitorContainer.id}`);
+  } catch(error) {
+    console.error(`Failed stopping monitor container: ${monitorContainer.id}`);
+    console.error(error);
+  }
+
+  // Remove the logstash network from the logged container, to prevent errors when adding a new monitor to this container.
+  try {
+    console.log(`Removing monitor network from ${loggedContainer}`);
+    await docker.disconnectContainerFrom(loggedContainer, process.env.LOGSTASH_NETWORK);
+    console.log(`Removed monitor network from ${loggedContainer}`);
+  } catch(error) {
+    console.error(`Failed removing monitor network from ${loggedContainer}`);
+    console.error(error);
+  }
+
+  // Finally, force remove the monitor container and (only if it succeeds), remove the monitor database entry.
+  try {
+    console.log(`Removing monitor container: ${monitorContainer.id}`);
+    await docker.removeContainer(monitorContainer, true); // Force removal in case stopping the container failed.
+    console.log(`Removed monitor container: ${monitor.id}`);
+    await monitor.remove(); // Only remove the monitor after removing its container.
+    console.log(`Removed monitor: ${monitor.uri}`);
+  } catch(error) {
+    console.error(`Failed removing monitor container: ${monitorContainer.id}`);
+    console.error(error);
+    if(error.statusCode == 404) { // 404 = "no such container", e.g. the container is already gone and we can safely set the monitor to "removed"
+      await monitor.remove();
+      console.log(`Removed monitor: ${monitor.uri}`);
+    }
+  }
+}
+
 const cleanup = async function() {
   console.log("Cleaning up...");
   let monitors = await NetworkMonitor.findAll("running");
   // Remove containers asynchronously to ensure we meet the 10s shutdown deadline.
-  return Promise.all(
-    monitors.map(async function(monitor) {
-      const container = docker.getContainer(monitor.id);
-
-      try {
-        console.log(`Stopping container: ${container.id}`);
-        await container.stop({t: 3}); // 3 second deadline for sub-containers.
-      } catch(error) {
-        console.log(`Failed stopping container: ${container.id}`);
-        console.log(error);
-      }
-
-      try {
-        console.log(`Removing container: ${container.id}`);
-        await container.remove({force: true}); // Force removal in case stopping the container failed.
-        console.log(`Removing monitor: ${monitor.id}`);
-        await monitor.remove(); // Only remove the monitor after removing its container.
-      } catch(error) {
-        console.log(error);
-      }
-    })
-  ).then(() => {
-    console.log("Cleanup done.");
-  });
+  return Promise.all(monitors.map(removeMonitor))
+                .then(() => {
+                  console.log("Cleanup done.");
+                });
 };
 
 const loggedContainers = async function() {
