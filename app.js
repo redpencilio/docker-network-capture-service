@@ -1,5 +1,5 @@
-import fs from 'fs-extra';
 import { app, query, uuid, sparqlEscapeString, sparqlEscapeUri } from 'mu';
+import bodyParser from 'body-parser';
 import docker from './docker';
 import NetworkMonitor from './network-monitor';
 
@@ -17,21 +17,7 @@ const monitor = async function() {
       let status = await attachedMonitor.containerStatus();
       console.log(`Status for ${container.uri}: ${status}.`)
       if (status != "running" && status != "created") {
-        // The monitor crashed, restart it.
-        console.log(`Restarting monitor for ${container.uri}`);
-
-        // Try to remove the container if it still exists.
-        await removeMonitor(attachedMonitor);
-
-        // Start a new monitor.
-        try {
-          console.log("Starting new monitor...");
-          await createMonitorFor(container);
-          console.log(`Monitor restarted for ${container.uri}`);
-        } catch(error) {
-          console.error(`Could not restart monitor for ${container.uri}`);
-          console.error(error);
-        }
+        await restartMonitor(container, attachedMonitor);
       }
     }
     else {
@@ -152,15 +138,22 @@ const removeMonitor = async function(monitor) {
   }
 }
 
-const cleanup = async function() {
-  console.log("Cleaning up...");
-  let monitors = await NetworkMonitor.findAll("running");
-  // Remove containers asynchronously to ensure we meet the 10s shutdown deadline.
-  return Promise.all(monitors.map(removeMonitor))
-                .then(() => {
-                  console.log("Cleanup done.");
-                });
-};
+const restartMonitor = async function(container, monitor) {
+  console.log(`Restarting monitor for ${container.uri}`);
+
+  // Try to remove the container if it still exists.
+  await removeMonitor(monitor);
+
+  // Start a new monitor.
+  try {
+    console.log("Starting new monitor...");
+    await createMonitorFor(container);
+    console.log(`Monitor restarted for ${container.uri}`);
+  } catch(error) {
+    console.error(`Could not restart monitor for ${container.uri}`);
+    console.error(error);
+  }
+}
 
 const loggedContainers = async function() {
   const result = await query(`
@@ -178,12 +171,9 @@ const loggedContainers = async function() {
                    docker:value ?project.
         }
         ${process.env.CAPTURE_CONTAINER_FILTER ? process.env.CAPTURE_CONTAINER_FILTER  : '' }
-        FILTER(
-          NOT EXISTS {
-             ?uri docker:label ?networkLabel.
-             ?networkLabel docker:key "mu.semte.ch.networkMonitor".
-          }
-        )
+        FILTER(NOT EXISTS {
+            ?uri docker:label/docker:key "mu.semte.ch.networkMonitor".
+          })
         }
     `);
   const bindingKeys = result.head.vars;
@@ -246,6 +236,17 @@ const awaitImage = async function() {
   }
 }
 
+// Remove all monitors
+const cleanup = async function() {
+  console.log("Cleaning up...");
+  let monitors = await NetworkMonitor.findAll("running");
+  // Remove containers asynchronously to ensure we meet the 10s shutdown deadline.
+  return Promise.all(monitors.map(removeMonitor))
+                .then(() => {
+                  console.log("Cleanup done.");
+                });
+};
+
 // Shut down gracefully
 const cleanAndExit = async function() {
   clearInterval(intervalID);
@@ -259,8 +260,100 @@ const cleanAndExit = async function() {
   }
 }
 
+const handleDelta = async function(req, res) {
+  console.log(`Received delta.`)
+
+  // Assume we always get two delta's, one with only inserts and another with only deletes.
+  // We only care about the inserts, assuming that the previous value for docker:state/docker:status was properly deleted
+  let inserts = req.body[0].inserts.length == 0 ? req.body[1].inserts : req.body[0].inserts;
+  inserts = inserts.filter(triple => triple.predicate.value == "https://w3.org/ns/bde/docker#status");
+
+  for(let change of inserts) {
+    let status = change.object.value;
+    let container = await getContainerByState(change.subject.value);
+    console.log(`Delta: state of ${container.id} changed to ${status}.`)
+    if(await isLogged(container)) { // If we're dealing with a container to log
+      let monitor = await NetworkMonitor.findByLoggedContainer(container.uri);
+      if (status == "running" || status == "created") { // If the container is now running
+        if(monitor == null) { // And there is no monitor yet
+          await createMonitorFor(container); // Create a new monitor
+        }
+      } else { // If the new status is a non-active status
+        if(monitor != null) { // And there's still a monitor
+          await removeMonitor(monitor); // Remove it
+        }
+      }
+    } else {
+      let monitor = await NetworkMonitor.findByRunningContainer(container);
+      if(monitor != null) {// If it's a monitoring container.
+        if(status != "running" && status != "created") { // And it has stopped running
+          let loggedContainer = await monitor.getLoggedContainer();
+          await restartMonitor(loggedContainer, monitor); // Restart it
+        }
+      }
+    }
+  }
+}
+
+// Return a container by its state URI
+const getContainerByState = async function(state) {
+  let result = await query(`
+    PREFIX docker: <https://w3.org/ns/bde/docker#>
+    SELECT ?uri ?id ?name ?project
+    FROM ${sparqlEscapeUri(process.env.MU_APPLICATION_GRAPH)}
+    WHERE {
+      ?uri a docker:Container;
+            docker:id ?id;
+            docker:name ?name;
+            docker:state ${sparqlEscapeUri(state)}.
+      OPTIONAL {
+        ?uri docker:label ?label.
+        ?label docker:key "com.docker.compose.project";
+                docker:value ?project.
+      }
+    }
+  `);
+  // Assume we only get a single result, as a State object should only be associated with a single container.
+  if(result.results.bindings.length > 0) {
+    let resultBinding = result.results.bindings[0];
+    return {
+      uri: resultBinding["uri"].value,
+      id: resultBinding["id"].value,
+      name: resultBinding["name"].value,
+      project: resultBinding["project"] != undefined ? resultBinding["project"].value : undefined,
+      status: state
+    };
+  } else {
+    return null;
+  }
+}
+
+// Check if the container with the given URI is logged.
+const isLogged = async function(container) {
+  // This should be an ASK query but I didn't get it to work properly.
+  // The CAPTURE_CONTAINER_FILTER environment variable needs the URI
+  // of the container bound as ?uri.
+  // So we just check if this query returns any results.
+  let result = await query(`
+    PREFIX docker: <https://w3.org/ns/bde/docker#>
+    SELECT ?uri
+    FROM ${sparqlEscapeUri(process.env.MU_APPLICATION_GRAPH)}
+    WHERE {
+      ?uri a docker:Container.
+      ${process.env.CAPTURE_CONTAINER_FILTER ? process.env.CAPTURE_CONTAINER_FILTER  : '' }
+      FILTER(?uri = ${sparqlEscapeUri(container.uri)})
+    }
+  `);
+  return result.results.bindings.length > 0;
+}
+
 process.once("SIGINT", cleanAndExit);
 process.once("SIGTERM", cleanAndExit);
 
-let intervalID = undefined;
+// Delta sends messages with Content-Type: application/json rather than application/vnd.api+json
+app.use(bodyParser.json());
+
+app.post('/.mu/delta', handleDelta);
+
+let intervalID;
 awaitDb().then( () => awaitDocker().then( () => awaitImage().then( () => intervalID = setInterval(monitor, process.env.CAPTURE_SYNC_INTERVAL))));

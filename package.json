@@ -1,11 +1,10 @@
 {
   "name": "docker-network-capture-service",
-  "version": "1.0.0",
-  "description": "a service that captures network traffic of a specific container and saves it to pcap files",
+  "version": "1.5.0",
+  "description": "A service that attaches network traffic monitoring containers to other containers.",
   "main": "index.js",
   "dependencies": {
-    "dockerode": "^2.5.5",
-    "fs-extra": "^7.0.0"
+    "dockerode": "^2.5.5"
   },
   "devDependencies": {},
   "scripts": {
