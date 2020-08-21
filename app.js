@@ -6,6 +6,8 @@ import transitions from './transitions';
 
 const imageName = process.env.MONITOR_IMAGE;
 
+let exiting = false;
+
 async function monitor() {
   console.log("Starting monitor sync.");
   const runningNetworkMonitors = await NetworkMonitor.findAll("running");
@@ -122,21 +124,24 @@ async function awaitImage() {
 // Remove all monitors
 async function cleanup() {
   console.log("Cleaning up...");
-  let monitors = await NetworkMonitor.findAll("running");
-  let containers = [];
-  for(let monitor of monitors) {
-    let container = await monitor.getLoggedContainer();
-    containers.push(container);
-    transitions.enqueue(container, monitor, transitions.removeMonitor);
+  let tuples = [];
+  for(let monitor of await NetworkMonitor.findAll("running")) {
+    tuples.push({
+      monitor: monitor,
+      container: await monitor.getLoggedContainer()
+    });
   }
   // Wait for all containers to be removed.
-  return Promise.all(containers.map(transitions.wait))
+  return Promise.all(tuples.map(async (tuple) => { transitions.enqueue(tuple.container, tuple.monitor, transitions.removeMonitor);
+                                                   return transitions.wait(tuple.container);
+                                                 }))
                 .then(() => console.log("Cleanup done."));
 };
 
 // Shut down gracefully
 async function cleanAndExit() {
-  clearInterval(intervalID);
+  clearInterval(intervalID); // Disable sync
+  exiting = true; // Stop receiving deltas
   console.log("Signal received.");
   try {
     await cleanup();
@@ -148,6 +153,10 @@ async function cleanAndExit() {
 }
 
 async function handleDelta(req, res) {
+  if(exiting) {
+    return;
+  }
+
   console.log(`Received delta.`)
 
   // Assume we always get two delta's, one with only inserts and another with only deletes.

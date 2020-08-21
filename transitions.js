@@ -44,7 +44,12 @@ function enqueue(container, monitor, fun) {
  * Returns a promise that resolves when the queue for the given container finishes.
  */
 function wait(container) {
-    return new Promise((resolve, _) => emitter.once(container.id, () => resolve(true)));
+    return new Promise((resolve, _) => { if(queue[container.id].actions.length == 0) {
+                                             resolve();
+                                         } else {
+                                             emitter.once(container.id, () => resolve())
+                                         }
+                                       });
 }
 
 /**
@@ -59,7 +64,7 @@ async function processContainer(container) {
         console.error(error);
     }
 
-    if(queue[container.id].actions > 0) {
+    if(queue[container.id].actions.length > 0) {
         processContainer(container);
     } else {
         queue[container.id].processing = false;
