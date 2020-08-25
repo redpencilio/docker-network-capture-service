@@ -43,7 +43,7 @@ async function monitor() {
 async function loggedContainers() {
   const result = await query(`
         PREFIX docker: <https://w3.org/ns/bde/docker#>
-        SELECT ?uri ?id ?image ?name ?project
+        SELECT ?uri ?id ?image ?name
         FROM ${sparqlEscapeUri(process.env.MU_APPLICATION_GRAPH)}
         WHERE {
           ?uri a docker:Container;
@@ -51,11 +51,6 @@ async function loggedContainers() {
                docker:name ?name;
                docker:image ?image;
                docker:state/docker:status "running".
-        OPTIONAL {
-            ?uri docker:label ?label.
-            ?label docker:key "com.docker.compose.project";
-                   docker:value ?project.
-        }
         ${process.env.CAPTURE_CONTAINER_FILTER ? process.env.CAPTURE_CONTAINER_FILTER  : '' }
         FILTER(NOT EXISTS {
             ?uri docker:label/docker:key "mu.semte.ch.networkMonitor".
@@ -208,7 +203,7 @@ async function handleDelta(req, res) {
 async function getContainerByState(state) {
   let result = await query(`
     PREFIX docker: <https://w3.org/ns/bde/docker#>
-    SELECT ?uri ?id ?name ?project ?image
+    SELECT ?uri ?id ?name ?image
     FROM ${sparqlEscapeUri(process.env.MU_APPLICATION_GRAPH)}
     WHERE {
       ?uri a docker:Container;
@@ -216,11 +211,6 @@ async function getContainerByState(state) {
             docker:name ?name;
             docker:image ?image;
             docker:state ${sparqlEscapeUri(state)}.
-      OPTIONAL {
-        ?uri docker:label ?label.
-        ?label docker:key "com.docker.compose.project";
-                docker:value ?project.
-      }
     }
   `);
   // Assume we only get a single result, as a State object should only be associated with a single container.
@@ -231,7 +221,6 @@ async function getContainerByState(state) {
       id: resultBinding["id"].value,
       name: resultBinding["name"].value,
       image: resultBinding["image"].value,
-      project: resultBinding["project"] != undefined ? resultBinding["project"].value : undefined,
       status: state
     };
   } else {

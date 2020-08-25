@@ -195,7 +195,7 @@ async function createMonitorContainer(container) {
                             `DOCKER_NAME=${container.name}`,
                             `DOCKER_IMAGE=${container.image}`,
                             `COMPOSE_SERVICE=${await getLabelValue(container, "com.docker.compose.service")}`,
-                            `COMPOSE_PROJECT=${container.project}`];
+                            `COMPOSE_PROJECT=${await getLabelValue(container, "com.docker.compose.project")}`];
         if(process.env.PACKETBEAT_MAX_MESSAGE_SIZE) {
             containerEnv.push(`PACKETBEAT_MAX_MESSAGE_SIZE=${process.env.PACKETBEAT_MAX_MESSAGE_SIZE}`);
         }
