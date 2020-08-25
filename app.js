@@ -43,12 +43,13 @@ async function monitor() {
 async function loggedContainers() {
   const result = await query(`
         PREFIX docker: <https://w3.org/ns/bde/docker#>
-        SELECT ?uri ?id ?name ?project
+        SELECT ?uri ?id ?image ?name ?project
         FROM ${sparqlEscapeUri(process.env.MU_APPLICATION_GRAPH)}
         WHERE {
           ?uri a docker:Container;
                docker:id ?id;
                docker:name ?name;
+               docker:image ?image;
                docker:state/docker:status "running".
         OPTIONAL {
             ?uri docker:label ?label.
@@ -207,12 +208,13 @@ async function handleDelta(req, res) {
 async function getContainerByState(state) {
   let result = await query(`
     PREFIX docker: <https://w3.org/ns/bde/docker#>
-    SELECT ?uri ?id ?name ?project
+    SELECT ?uri ?id ?name ?project ?image
     FROM ${sparqlEscapeUri(process.env.MU_APPLICATION_GRAPH)}
     WHERE {
       ?uri a docker:Container;
             docker:id ?id;
             docker:name ?name;
+            docker:image ?image;
             docker:state ${sparqlEscapeUri(state)}.
       OPTIONAL {
         ?uri docker:label ?label.
@@ -228,6 +230,7 @@ async function getContainerByState(state) {
       uri: resultBinding["uri"].value,
       id: resultBinding["id"].value,
       name: resultBinding["name"].value,
+      image: resultBinding["image"].value,
       project: resultBinding["project"] != undefined ? resultBinding["project"].value : undefined,
       status: state
     };

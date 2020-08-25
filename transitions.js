@@ -191,9 +191,11 @@ async function createMonitorContainer(container) {
     let monitor = null;
     try {
         let containerEnv = ["LOGSTASH_URL=logstash:5044",
-                   `COMPOSE_PROJECT=${container.project}`,
-                   `COMPOSE_SERVICE=${container.name}`,
-                   `COMPOSE_CONTAINER_ID=${container.id}`];
+                            `DOCKER_ID=${container.id}`,
+                            `DOCKER_NAME=${container.name}`,
+                            `DOCKER_IMAGE=${container.image}`,
+                            `COMPOSE_SERVICE=${await getLabelValue(container, "com.docker.compose.service")}`,
+                            `COMPOSE_PROJECT=${container.project}`];
         if(process.env.PACKETBEAT_MAX_MESSAGE_SIZE) {
             containerEnv.push(`PACKETBEAT_MAX_MESSAGE_SIZE=${process.env.PACKETBEAT_MAX_MESSAGE_SIZE}`);
         }
@@ -277,5 +279,26 @@ async function removeMonitorContainer(monitorContainer, monitor) {
             console.error(`Failed removing monitor: ${monitor.uri}`);
             throw(error); // If we fail to remove the monitor, throw an error.
         }
+    }
+}
+
+async function getLabelValue(container, label) {
+    const result = await query(`
+    PREFIX docker: <https://w3.org/ns/bde/docker#>
+    SELECT ?value
+    FROM ${sparqlEscapeUri(process.env.MU_APPLICATION_GRAPH)}
+    WHERE {
+        ?uri      a            docker:Container;
+                  docker:id    ${sparqlEscapeString(container.id)};
+                  docker:label ?labelUri.
+        ?labelUri a            docker:ContainerLabel;
+                  docker:key   ${sparqlEscapeString(label)};
+                  docker:value ?value.
+    }`);
+    if(result.results.bindings.length > 0) {
+      return result.results.bindings[0]["value"].value;
+    } else {
+      console.error(`Cannot find label ${label} for ${container.name}`)
+      return null;
     }
 }

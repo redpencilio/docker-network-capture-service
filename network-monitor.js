@@ -102,12 +102,13 @@ class NetworkMonitor {
     const result = await query(`
         ${PREFIXES}
         PREFIX docker: <https://w3.org/ns/bde/docker#>
-        SELECT ?id ?name ?status
+        SELECT ?id ?name ?status ?image
         FROM ${sparqlEscapeUri(process.env.MU_APPLICATION_GRAPH)}
         WHERE {
           ${sparqlEscapeUri(this.dockerContainer)} a docker:Container;
                                                      docker:id ?id;
                                                      docker:name ?name;
+                                                     docker:image ?image;
                                                      docker:state/docker:status ?status.
         }
 
@@ -118,7 +119,8 @@ class NetworkMonitor {
         uri: this.dockerContainer,
         id: binding["id"].value,
         name: binding["name"].value,
-        status: binding["status"].value
+        status: binding["status"].value,
+        image: binding["image"].value
       };
     } else {
       return null;
