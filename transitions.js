@@ -190,24 +190,31 @@ async function createMonitorContainer(container) {
     let monitorContainer = null;
     let monitor = null;
     try {
-         monitorContainer = await docker.createContainer({
-                Image: imageName,
-                AttachStdin: false,
-                AttachStdout: true,
-                AttachStderr: true,
-                Labels: { "mu.semte.ch.networkMonitor": container.uri },
-                HostConfig: {
-                    NetworkMode: `container:${container.id}`,
-                    CapAdd: ["NET_ADMIN", "NET_RAW"]
-                },
-                Env: ["LOGSTASH_URL=logstash:5044",
-                      `COMPOSE_PROJECT=${container.project}`,
-                      `COMPOSE_SERVICE=${container.name}`,
-                      `COMPOSE_CONTAINER_ID=${container.id}`],
-                Tty: false,
-                OpenStdin: false,
-                StdinOnce: false,
-                name: `${container.name}-monitor`
+        let containerEnv = ["LOGSTASH_URL=logstash:5044",
+                   `COMPOSE_PROJECT=${container.project}`,
+                   `COMPOSE_SERVICE=${container.name}`,
+                   `COMPOSE_CONTAINER_ID=${container.id}`];
+        if(process.env.PACKETBEAT_MAX_MESSAGE_SIZE) {
+            containerEnv.push(`PACKETBEAT_MAX_MESSAGE_SIZE=${process.env.PACKETBEAT_MAX_MESSAGE_SIZE}`);
+        }
+        if(process.env.PACKETBEAT_LISTEN_PORTS) {
+            containerEnv.push(`PACKETBEAT_LISTEN_PORTS=${process.env.PACKETBEAT_LISTEN_PORTS}`);
+        }
+        monitorContainer = await docker.createContainer({
+            Image: imageName,
+            AttachStdin: false,
+            AttachStdout: true,
+            AttachStderr: true,
+            Labels: { "mu.semte.ch.networkMonitor": container.uri },
+            HostConfig: {
+                NetworkMode: `container:${container.id}`,
+                CapAdd: ["NET_ADMIN", "NET_RAW"]
+            },
+            Env: containerEnv,
+            Tty: false,
+            OpenStdin: false,
+            StdinOnce: false,
+            name: `${container.name}-monitor`
         });
         await docker.startContainer(monitorContainer, {});
 
