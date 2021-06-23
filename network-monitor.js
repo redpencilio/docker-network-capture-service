@@ -16,7 +16,7 @@ class NetworkMonitor {
   static async findAll(status=null) {
     const result = await query(`
         ${PREFIXES}
-        SELECT ?id ?uri ?status ?dockerContainer
+        SELECT DISTINCT ?id ?uri ?status ?dockerContainer
         FROM ${sparqlEscapeUri(process.env.MU_APPLICATION_GRAPH)}
         WHERE {
           ?uri a logger:NetworkMonitor;
@@ -42,7 +42,7 @@ class NetworkMonitor {
   static async findByLoggedContainer(containerURI) {
     const result = await query(`
         ${PREFIXES}
-        SELECT ?id ?uri ?status
+        SELECT DISTINCT ?id ?uri ?status
         FROM ${sparqlEscapeUri(process.env.MU_APPLICATION_GRAPH)}
         WHERE {
           ?uri a logger:NetworkMonitor;
@@ -70,7 +70,7 @@ class NetworkMonitor {
   static async findByRunningContainer(container) {
     const result = await query(`
         ${PREFIXES}
-        SELECT ?uri ?status ?dockerContainer
+        SELECT DISTINCT ?uri ?status ?dockerContainer
         FROM ${sparqlEscapeUri(process.env.MU_APPLICATION_GRAPH)}
         WHERE {
           ?uri a logger:NetworkMonitor;
@@ -92,7 +92,7 @@ class NetworkMonitor {
       return null;
     }
   }
- 
+
   async remove() {
     this.status = "removed";
     this.save();
@@ -102,7 +102,7 @@ class NetworkMonitor {
     const result = await query(`
         ${PREFIXES}
         PREFIX docker: <https://w3.org/ns/bde/docker#>
-        SELECT ?id ?name ?status ?image
+        SELECT DISTINCT ?id ?name ?status ?image
         FROM ${sparqlEscapeUri(process.env.MU_APPLICATION_GRAPH)}
         WHERE {
           ${sparqlEscapeUri(this.dockerContainer)} a docker:Container;
@@ -131,7 +131,7 @@ class NetworkMonitor {
   async containerStatus() {
     const result = await query(`
         PREFIX docker: <https://w3.org/ns/bde/docker#>
-        SELECT ?status
+        SELECT DISTINCT ?status
         FROM ${sparqlEscapeUri(process.env.MU_APPLICATION_GRAPH)}
         WHERE {
           ?uri a docker:Container;
