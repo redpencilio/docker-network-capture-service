@@ -19,7 +19,7 @@ async function monitor() {
       // Already monitoring container, remove from list
       let attachedMonitor = runningNetworkMonitors.splice(index, 1)[0];
       let status = await attachedMonitor.containerStatus();
-      console.log(`Status for ${container.uri}: ${status}.`)
+      console.log(`Status for ${container.uri}: ${status}.`);
       if (status != "running" && status != "created") {
         transitions.enqueue(container, attachedMonitor, transitions.restartMonitor);
       }
@@ -108,7 +108,7 @@ async function awaitImage() {
     console.log(`Pulling ${imageName}...`);
     try {
       await docker.pull(imageName);
-      console.log('Successfully pulled image.')
+      console.log('Successfully pulled image.');
       break;
     }
     catch(e) {
@@ -153,7 +153,7 @@ async function handleDelta(req, res) {
     return;
   }
 
-  console.log(`Received delta.`)
+  console.log(`Received delta.`);
 
   // Assume we always get two delta's, one with only inserts and another with only deletes.
   // We only care about the inserts, assuming that the previous value for docker:state/docker:status was properly deleted
@@ -161,7 +161,7 @@ async function handleDelta(req, res) {
   try {
     inserts = req.body[0].inserts.length == 0 ? req.body[1].inserts : req.body[0].inserts;
   } catch(error) {
-    console.error("ERROR: Got delta in unexpected format.")
+    console.error("ERROR: Got delta in unexpected format.");
     console.error(req.body);
     console.error(error);
   }
@@ -174,7 +174,7 @@ async function handleDelta(req, res) {
       console.error(`ERROR: Could not find container for ${change.subject.value}`);
       return;
     }
-    console.log(`Delta: state of ${container.id} changed to ${status}.`)
+    console.log(`Delta: state of ${container.id} changed to ${status}.`);
     if(await isLogged(container)) { // If we're dealing with a container to log
       let monitor = await NetworkMonitor.findByLoggedContainer(container.uri);
       if (status == "running" || status == "created") { // If the container is now running

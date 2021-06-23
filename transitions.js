@@ -298,7 +298,7 @@ async function getLabelValue(container, label) {
     if(result.results.bindings.length > 0) {
       return result.results.bindings[0]["value"].value;
     } else {
-      console.error(`Cannot find label ${label} for ${container.name}`)
+      console.error(`Cannot find label ${label} for ${container.name}`);
       return null;
     }
 }

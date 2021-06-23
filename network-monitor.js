@@ -142,7 +142,7 @@ class NetworkMonitor {
     if(result.results.bindings.length > 0) {
       return result.results.bindings[0]["status"].value;
     } else {
-      console.error(`Cannot find status for ${this.id}`)
+      console.error(`Cannot find status for ${this.id}`);
       return "none";
     }
   }
@@ -160,7 +160,7 @@ class NetworkMonitor {
     if(result.results.bindings.length > 0) {
       return result.results.bindings[0]["id"].value;
     } else {
-      console.error(`Cannot find logged container id for ${this.id}`)
+      console.error(`Cannot find logged container id for ${this.id}`);
       return "none";
     }
   }
