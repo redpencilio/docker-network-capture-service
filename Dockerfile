@@ -1,4 +1,4 @@
-FROM semtech/mu-javascript-template:latest
+FROM semtech/mu-javascript-template:1.3.5
 ENV CAPTURE_DOCKER_SOCKET /var/run/docker.sock
 ENV CAPTURE_SYNC_INTERVAL 2500 # miliseconds
 ENV MONITOR_IMAGE redpencil/http-logger-packetbeat-service
