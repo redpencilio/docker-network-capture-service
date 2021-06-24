@@ -169,17 +169,27 @@ async function handleDelta(req, res) {
   }
   inserts = inserts.filter(triple => triple.predicate.value == "https://w3.org/ns/bde/docker#status");
 
+  const containers = [];
   for(let change of inserts) {
     let status = change.object.value;
     let container = await getContainerByState(change.subject.value);
+    container.statusLabel = status;
     if(container == null) {
       console.error(`ERROR: Could not find container for ${change.subject.value}`);
-      return;
+    } else {
+      const alreadyFetched = containers.find(c => c.uri == container.uri && c.statusLabel == container.statusLabel);
+      if (!alreadyFetched) {
+        containers.push(container);
+      }
     }
-    console.log(`Delta: state of ${container.id} changed to ${status}.`);
+  }
+  console.log(`Found ${containers.length} containers in delta for which status got updated`);
+
+  for (let container of containers) {
+    console.log(`Delta: state of ${container.id} changed to ${container.statusLabel}.`);
     if(await isLogged(container)) { // If we're dealing with a container to log
       let monitor = await NetworkMonitor.findByLoggedContainer(container.uri);
-      if (status == "running" || status == "created") { // If the container is now running
+      if (container.statusLabel == "running" || container.statusLabel == "created") { // If the container is now running
         if(monitor == null) { // And there is no monitor yet
           transitions.enqueue(container, null, transitions.createMonitor); // Create a new monitor
         }
@@ -191,7 +201,7 @@ async function handleDelta(req, res) {
     } else {
       let monitor = await NetworkMonitor.findByRunningContainer(container);
       if(monitor != null) {// If it's a monitoring container.
-        if(status != "running" && status != "created") { // And it has stopped running
+        if(container.statusLabel != "running" && container.statusLabel != "created") { // And it has stopped running
           let loggedContainer = await monitor.getLoggedContainer();
           transitions.enqueue(loggedContainer, monitor, transitions.restartMonitor); // Restart it
         }
