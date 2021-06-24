@@ -11,7 +11,9 @@ let exiting = false;
 async function monitor() {
   console.log("Starting monitor sync.");
   const runningNetworkMonitors = await NetworkMonitor.findAll("running");
+  console.log(`Found ${runningNetworkMonitors.length} network monitors registered in triplestore`);
   const runningContainers = await loggedContainers();
+  console.log(`Found ${runningContainers.length} non-networking containers registered in triplestore`);
 
   for (let container of runningContainers) {
     let index = runningNetworkMonitors.findIndex((monitor) => monitor.dockerContainer === container.uri);
@@ -43,7 +45,7 @@ async function monitor() {
 async function loggedContainers() {
   const result = await query(`
         PREFIX docker: <https://w3.org/ns/bde/docker#>
-        SELECT ?uri ?id ?image ?name
+        SELECT DISTINCT ?uri ?id ?image ?name
         FROM ${sparqlEscapeUri(process.env.MU_APPLICATION_GRAPH)}
         WHERE {
           ?uri a docker:Container;
