@@ -38,7 +38,9 @@ async function monitor() {
   }
   // remaining monitors are for containers that are no longer running or logged, kill them
   for (let monitor of runningNetworkMonitors) {
-    transitions.enqueue(await monitor.getLoggedContainer(), monitor, transitions.removeMonitor);
+    const container = await monitor.getLoggedContainer();
+    if (container)
+      transitions.enqueue(container, monitor, transitions.removeMonitor);
   }
 };
 
