@@ -1,4 +1,4 @@
-import { app, query, uuid, sparqlEscapeString, sparqlEscapeUri } from 'mu';
+import { app, query, sparqlEscapeUri } from 'mu';
 import bodyParser from 'body-parser';
 import docker from './docker';
 import NetworkMonitor from './network-monitor';
