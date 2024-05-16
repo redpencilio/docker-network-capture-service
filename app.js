@@ -274,4 +274,11 @@ app.use(bodyParser.json());
 app.post('/.mu/delta', handleDelta);
 
 let intervalID;
-awaitDb().then( () => awaitDocker().then( () => awaitImage().then( () => intervalID = setInterval(monitor, process.env.CAPTURE_SYNC_INTERVAL))));
+
+async function init() {
+  await awaitDb();
+  await awaitDocker();
+  await awaitImage();
+  intervalID = setInterval( monitor, CAPTURE_SYNC_INTERVAL );
+}
+await init();
