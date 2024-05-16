@@ -4,7 +4,11 @@ import docker from './docker';
 import NetworkMonitor from './network-monitor';
 import transitions from './transitions';
 
-const imageName = process.env.MONITOR_IMAGE;
+// Env vars
+const MONITOR_IMAGE = process.env.MONITOR_IMAGE;
+const CAPTURE_SYNC_INTERVAL = process.env.CAPTURE_SYNC_INTERVAL;
+const APPLICATION_GRAPH = process.env.MU_APPLICATION_GRAPH;
+const CAPTURE_CONTAINER_FILTER = process.env.CAPTURE_CONTAINER_FILTER || '';
 
 let exiting = false;
 
@@ -48,14 +52,14 @@ async function loggedContainers() {
   const result = await query(`
         PREFIX docker: <https://w3.org/ns/bde/docker#>
         SELECT DISTINCT ?uri ?id ?image ?name
-        FROM ${sparqlEscapeUri(process.env.MU_APPLICATION_GRAPH)}
+        FROM ${sparqlEscapeUri(APPLICATION_GRAPH)}
         WHERE {
           ?uri a docker:Container;
                docker:id ?id;
                docker:name ?name;
                docker:image ?image;
                docker:state/docker:status "running".
-        ${process.env.CAPTURE_CONTAINER_FILTER ? process.env.CAPTURE_CONTAINER_FILTER  : '' }
+        ${CAPTURE_CONTAINER_FILTER}
         FILTER(NOT EXISTS {
             ?uri docker:label/docker:key "mu.semte.ch.networkMonitor".
           })
@@ -109,14 +113,14 @@ async function awaitDocker() {
 
 async function awaitImage() {
   while (true) {
-    console.log(`Pulling ${imageName}...`);
+    console.log(`Pulling ${MONITOR_IMAGE}...`);
     try {
-      await docker.pull(imageName);
+      await docker.pull(MONITOR_IMAGE);
       console.log('Successfully pulled image.');
       break;
     }
     catch(e) {
-      console.error('ERROR: Failed to pull ' + imageName);
+      console.error('ERROR: Failed to pull ' + MONITOR_IMAGE);
     }
   }
 }
@@ -218,7 +222,7 @@ async function getContainerByState(state) {
   let result = await query(`
     PREFIX docker: <https://w3.org/ns/bde/docker#>
     SELECT ?uri ?id ?name ?image
-    FROM ${sparqlEscapeUri(process.env.MU_APPLICATION_GRAPH)}
+    FROM ${sparqlEscapeUri(APPLICATION_GRAPH)}
     WHERE {
       ?uri a docker:Container;
             docker:id ?id;
@@ -251,10 +255,10 @@ async function isLogged(container) {
   let result = await query(`
     PREFIX docker: <https://w3.org/ns/bde/docker#>
     SELECT ?uri
-    FROM ${sparqlEscapeUri(process.env.MU_APPLICATION_GRAPH)}
+    FROM ${sparqlEscapeUri(APPLICATION_GRAPH)}
     WHERE {
       ?uri a docker:Container.
-      ${process.env.CAPTURE_CONTAINER_FILTER ? process.env.CAPTURE_CONTAINER_FILTER  : '' }
+      ${CAPTURE_CONTAINER_FILTER}
       FILTER(?uri = ${sparqlEscapeUri(container.uri)})
     }
   `);
