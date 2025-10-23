@@ -47,7 +47,7 @@ function wait(container) {
     return new Promise((resolve, _) => { if(queue[container.id].actions.length == 0) {
                                              resolve();
                                          } else {
-                                             emitter.once(container.id, () => resolve())
+                                             emitter.once(container.id, () => resolve());
                                          }
                                        });
 }
@@ -77,7 +77,7 @@ async function processContainer(container) {
  * Create a new monitor for the given container.
  */
 async function createMonitor(container, taskMonitor) {
-    const actualMonitor = await NetworkMonitor.findByLoggedContainer(container.uri)
+    const actualMonitor = await NetworkMonitor.findByLoggedContainer(container.uri);
     if(actualMonitor != null || taskMonitor != null) {
         console.error(`Cannot create a monitor for ${container.name}, it already has a monitor ${actualMonitor.id}`);
         return;
@@ -125,7 +125,7 @@ async function createMonitor(container, taskMonitor) {
  * Remove the container's monitor.
  */
 async function removeMonitor(loggedContainer, monitor) {
-    const actualMonitor = await NetworkMonitor.findByLoggedContainer(loggedContainer.uri)
+    const actualMonitor = await NetworkMonitor.findByLoggedContainer(loggedContainer.uri);
     if(actualMonitor == null || monitor.id != actualMonitor.id) {
         console.error(`Cannot remove monitor ${monitor.id} as it has already been removed.`);
         return;
@@ -149,8 +149,13 @@ async function removeMonitor(loggedContainer, monitor) {
         await docker.disconnectContainerFrom(loggedContainer.id, process.env.LOGSTASH_NETWORK);
         console.log(`Removed monitor network from ${loggedContainer.name}`);
     } catch(error) {
-        console.error(`Failed removing monitor network from ${loggedContainer.name}`);
+      if (error.statusCode == 404) {
+        console.warn(`Failed removing monitor network from ${loggedContainer.name}; probably fine`);
+        console.warn(error);
+      } else {
+        console.error(`Failed removing monitor network from ${loggedContainer.name}; probably fine`);
         console.error(error);
+      }
     }
     console.log(`Removed monitor for ${loggedContainer.name}`);
 }
@@ -159,7 +164,7 @@ async function removeMonitor(loggedContainer, monitor) {
  * Remove and recreate the monitor for the container.
  */
 async function restartMonitor(container, taskMonitor) {
-    const actualMonitor = await NetworkMonitor.findByLoggedContainer(container.uri)
+    const actualMonitor = await NetworkMonitor.findByLoggedContainer(container.uri);
     if(actualMonitor == null || taskMonitor.id != actualMonitor.id) {
         console.error(`Cannot restart monitor ${taskMonitor.id} as it has been removed.`);
         return;
@@ -186,9 +191,10 @@ async function restartMonitor(container, taskMonitor) {
 /**
  * Create and start a new monitor container for the given logged container and network monitor object. Does not touch the network.
  */
-async function createMonitorContainer(container) {
+async function createMonitorContainer(container, options = {_retryOnConflict: true}) {
     let monitorContainer = null;
     let monitor = null;
+    const monitorContainerName = `${container.name}-monitor`;
     try {
         let containerEnv = ["LOGSTASH_URL=logstash:5044",
                             `DOCKER_ID=${container.id}`,
@@ -216,7 +222,7 @@ async function createMonitorContainer(container) {
             Tty: false,
             OpenStdin: false,
             StdinOnce: false,
-            name: `${container.name}-monitor`
+            name: monitorContainerName
         });
         await docker.startContainer(monitorContainer, {});
 
@@ -229,8 +235,26 @@ async function createMonitorContainer(container) {
         await monitor.save();
     } catch(error) {
         if(monitorContainer == null) {
-            console.error(`ERROR: Failed creating monitor container for ${container.uri}`);
-            console.error(error);
+            if(error.statusCode == 409) {
+              // stop and remove old monitoring container
+              // TODO: retry monitor creation
+              if( options._retryOnConflict == true ) {
+                const existingMonitorContainer = await docker.findContainerByName( monitorContainerName );
+                if( existingMonitorContainer ) {
+                  console.log(`Removing ${monitorContainerName} and retrying`);
+                  await docker.removeContainer(existingMonitorContainer, true);
+                  return await createMonitorContainer(
+                    container, Object.assign({}, options, { _retryOnConflict: false }));
+                } else {
+                  console.error(`Conflict without overlapping container name for ${monitorContainerName}`);
+                }
+              } else {
+                console.error(`Failed to create monitoring container for ${container.uri} even after removing old container.`);
+              }
+            } else {
+              console.error(`ERROR: Failed creating monitor container for ${container.uri}`);
+              console.error(error);
+            }
         } else {
             console.error(`ERROR: Failed to start monitor for ${container.name}`);
             console.error(error);
@@ -259,8 +283,10 @@ async function removeMonitorContainer(monitorContainer, monitor) {
         await monitorContainer.stop({t: 3}); // 3 second deadline for sub-containers.
         console.log(`Stopped monitor container: ${monitorContainer.id}`);
     } catch(error) {
+      if (error.statusCode !== 404) { // 404 means container is removed
         console.error(`Failed stopping monitor container: ${monitorContainer.id}`);
         console.error(error);
+      }
     }
     // Then force remove the monitor container and (only if it succeeds), remove the monitor database entry.
     try {
@@ -270,13 +296,12 @@ async function removeMonitorContainer(monitorContainer, monitor) {
         await monitor.remove(); // Only remove the monitor after removing its container.
         console.log(`Removed monitor: ${monitor.uri}`);
     } catch(error) {
-        console.error(`Failed removing monitor container: ${monitorContainer.id}`);
-        console.error(error);
         if(error.statusCode == 404) { // 404 = "no such container", e.g. the container is already gone and we can safely set the monitor to "removed"
             await monitor.remove();
             console.log(`Removed monitor: ${monitor.uri}`);
         } else {
-            console.error(`Failed removing monitor: ${monitor.uri}`);
+            console.error(`Failed removing monitor container: ${monitorContainer.id}`);
+            console.error(error);
             throw(error); // If we fail to remove the monitor, throw an error.
         }
     }

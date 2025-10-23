@@ -5,9 +5,9 @@ const dockerode = new Docker({
   version: 'v1.37'
 });
 
-function listContainers() {
+function listContainers(options) {
   return new Promise(function(resolve, reject) {
-    dockerode.listContainers(function(err, containers) {
+    dockerode.listContainers(options,function(err, containers) {
       if (err)
         reject(err);
       else
@@ -15,6 +15,16 @@ function listContainers() {
     });
   });
 };
+
+async function findContainerByName(name) {
+  const containers = await listContainers({all: true});
+
+  for( const container of containers ) {
+    if( container.Names.includes( name ) )
+      return dockerode.getContainer(container.id);
+  }
+  return null;
+}
 
 function pull(image) {
   return new Promise( (resolve, reject) => {
@@ -90,13 +100,14 @@ function startContainer(container, opts) {
 
 const docker = {
   listContainers:  listContainers,
+  findContainerByName,
   pull: pull,
   removeContainer: remove,
   createContainer: async (obj) => dockerode.createContainer(obj),
   getContainer: (id) => dockerode.getContainer(id),
   connectContainerTo: connectContainerTo,
   disconnectContainerFrom: disconnectContainerFrom,
-  startContainer: startContainer
+  startContainer: startContainer,
 };
 
 export default docker;

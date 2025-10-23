@@ -24,10 +24,15 @@ async function monitor() {
     if (index > -1) {
       // Already monitoring container, remove from list
       let attachedMonitor = runningNetworkMonitors.splice(index, 1)[0];
-      let status = await attachedMonitor.containerStatus();
-      console.log(`Status for ${container.uri}: ${status}.`);
-      if (status != "running" && status != "created") {
-        transitions.enqueue(container, attachedMonitor, transitions.restartMonitor);
+      try {
+        let status = await attachedMonitor.containerStatus();
+        console.log(`Status for ${container.uri}: ${status}.`);
+        if (status != "running" && status != "created") {
+          transitions.enqueue(container, attachedMonitor, transitions.restartMonitor);
+        }
+      } catch (e) {
+        console.log(`Something went wrong with monitor for ${container.uri}, removing it.`);
+        await monitor.remove();
       }
     }
     else {

@@ -142,8 +142,8 @@ class NetworkMonitor {
     if(result.results.bindings.length > 0) {
       return result.results.bindings[0]["status"].value;
     } else {
-      console.error(`Cannot find status for ${this.id}`);
-      return "none";
+      // console.error(`Cannot find status for ${this.id}`);
+      return;
     }
   }
 
