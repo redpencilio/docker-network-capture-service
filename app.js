@@ -269,9 +269,7 @@ process.once("SIGINT", cleanAndExit);
 process.once("SIGTERM", cleanAndExit);
 
 // Delta sends messages with Content-Type: application/json rather than application/vnd.api+json
-app.use(bodyParser.json());
-
-app.post('/.mu/delta', handleDelta);
+app.post('/.mu/delta', bodyParser.json({ limit: '100mb' }), handleDelta);
 
 let intervalID;
 
