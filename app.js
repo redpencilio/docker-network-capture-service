@@ -268,7 +268,7 @@ async function isLogged(container) {
 process.once("SIGINT", cleanAndExit);
 process.once("SIGTERM", cleanAndExit);
 
-// Delta sends messages with Content-Type: application/json rather than application/vnd.api+json
+// Delta sends messages with Content-Type: application/json rather than application/vnd.api+jsong
 app.post('/.mu/delta', bodyParser.json({ limit: '100mb' }), handleDelta);
 
 let intervalID;
@@ -279,4 +279,5 @@ async function init() {
   await awaitImage();
   intervalID = setInterval( monitor, CAPTURE_SYNC_INTERVAL );
 }
-await init();
+
+init();
