@@ -1,6 +1,6 @@
 {
   "name": "docker-network-capture-service",
-  "version": "1.8.4",
+  "version": "1.9.0",
   "description": "A service that attaches network traffic monitoring containers to other containers.",
   "main": "index.js",
   "dependencies": {
