@@ -273,7 +273,7 @@ async function isLogged(container) {
 process.once("SIGINT", cleanAndExit);
 process.once("SIGTERM", cleanAndExit);
 
-// Delta sends messages with Content-Type: application/json rather than application/vnd.api+jsong
+// Delta sends messages with Content-Type: application/json rather than application/vnd.api+json
 app.post('/.mu/delta', bodyParser.json({ limit: '100mb' }), handleDelta);
 
 let intervalID;

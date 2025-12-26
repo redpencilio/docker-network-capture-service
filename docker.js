@@ -2,7 +2,6 @@ import Docker from 'dockerode';
 
 const dockerode = new Docker({
   socketPath: process.env.CAPTURE_DOCKER_SOCKET,
-  version: 'v1.37'
 });
 
 function listContainers(options) {
