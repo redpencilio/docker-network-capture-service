@@ -216,7 +216,8 @@ async function createMonitorContainer(container, options = {_retryOnConflict: tr
             Labels: { "mu.semte.ch.networkMonitor": container.uri },
             HostConfig: {
                 NetworkMode: `container:${container.id}`,
-                CapAdd: ["NET_ADMIN", "NET_RAW"]
+                CapAdd: ["NET_ADMIN", "NET_RAW"],
+                RestartPolicy: { Name: "always" }
             },
             Env: containerEnv,
             Tty: false,
