@@ -32,7 +32,7 @@ async function monitor() {
         }
       } catch (e) {
         console.log(`Something went wrong with monitor for ${container.uri}, removing it.`);
-        await monitor.remove();
+        await attachedMonitor.remove();
       }
     }
     else {
