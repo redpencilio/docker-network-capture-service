@@ -20,7 +20,7 @@ async function findContainerByName(name) {
 
   for( const container of containers ) {
     if( container.Names.includes( name ) )
-      return dockerode.getContainer(container.id);
+      return dockerode.getContainer(container.Id);
   }
   return null;
 }
