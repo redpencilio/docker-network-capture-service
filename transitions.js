@@ -1,4 +1,5 @@
 import { app, query, uuid, sparqlEscapeString, sparqlEscapeUri } from 'mu';
+import { AUTO_RESTART_MONITOR } from './config';
 import NetworkMonitor from './network-monitor';
 import docker from './docker';
 import events from 'events';
@@ -214,11 +215,13 @@ async function createMonitorContainer(container, options = {_retryOnConflict: tr
             AttachStdout: true,
             AttachStderr: true,
             Labels: { "mu.semte.ch.networkMonitor": container.uri },
-            HostConfig: {
-                NetworkMode: `container:${container.id}`,
-                CapAdd: ["NET_ADMIN", "NET_RAW"],
-                RestartPolicy: { Name: "always" }
-            },
+            HostConfig: Object.assign(
+              {
+                  NetworkMode: `container:${container.id}`,
+                  CapAdd: ["NET_ADMIN", "NET_RAW"]
+              },
+                  AUTO_RESTART_MONITOR ? { RestartPolicy: { Name: "always" } } : {}
+            ),
             Env: containerEnv,
             Tty: false,
             OpenStdin: false,
