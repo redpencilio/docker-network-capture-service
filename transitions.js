@@ -1,5 +1,5 @@
 import { app, query, uuid, sparqlEscapeString, sparqlEscapeUri } from 'mu';
-import { AUTO_RESTART_MONITOR } from './environment';
+import { USE_DOCKER_RESTART_POLICY } from './environment';
 import NetworkMonitor from './network-monitor';
 import docker from './docker';
 import events from 'events';
@@ -220,7 +220,7 @@ async function createMonitorContainer(container, options = {_retryOnConflict: tr
                   NetworkMode: `container:${container.id}`,
                   CapAdd: ["NET_ADMIN", "NET_RAW"]
               },
-                  AUTO_RESTART_MONITOR ? { RestartPolicy: { Name: "always" } } : {}
+                  USE_DOCKER_RESTART_POLICY ? { RestartPolicy: { Name: "always" } } : {}
             ),
             Env: containerEnv,
             Tty: false,

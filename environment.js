@@ -1,4 +1,4 @@
 import env from 'env-var';
 
-export const AUTO_RESTART_MONITOR = env.get('AUTO_RESTART_MONITOR').default("true").asBool();
+export const USE_DOCKER_RESTART_POLICY = env.get('USE_DOCKER_RESTART_POLICY').default("false").asBool();
 export const PULL_MONITOR_IMAGE = env.get('PULL_MONITOR_IMAGE').default("true").asBool();

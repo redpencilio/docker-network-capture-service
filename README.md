@@ -40,7 +40,7 @@ The `CAPTURE_CONTAINER_FILTER` environment variable controls this via a SPARQL f
 | `MU_SPARQL_ENDPOINT` | `http://database:8890/sparql` | SPARQL endpoint |
 | `MU_APPLICATION_GRAPH` | | Named graph to query container state from |
 | `LOG_SPARQL_ALL` | `true` | Set to `false` to suppress SPARQL query logging |
-| `AUTO_RESTART_MONITOR`        | `true`                                     | Enable restart policy on created monitoring containers                                       |
+| `USE_DOCKER_RESTART_POLICY`   | `false`                                    | Enable restart policy on created monitoring containers.  Lowers downtime but creates two downtimes with restarts. |
 | `PULL_MONITOR_IMAGE`          | `true`                                     | Pull the monitor image on start (enable unless you use a local build)                                             |
 
 ## Delta notifications
