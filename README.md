@@ -41,6 +41,7 @@ The `CAPTURE_CONTAINER_FILTER` environment variable controls this via a SPARQL f
 | `MU_APPLICATION_GRAPH` | | Named graph to query container state from |
 | `LOG_SPARQL_ALL` | `true` | Set to `false` to suppress SPARQL query logging |
 | `AUTO_RESTART_MONITOR`        | `true`                                     | Enable restart policy on created monitoring containers                                       |
+| `PULL_MONITOR_IMAGE`          | `true`                                     | Pull the monitor image on start (enable unless you use a local build)                                             |
 
 ## Delta notifications
 

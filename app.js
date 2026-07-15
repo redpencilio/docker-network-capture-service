@@ -1,4 +1,5 @@
 import { app, query, sparqlEscapeUri, beforeExit } from 'mu';
+import { PULL_MONITOR_IMAGE } from './environment';
 import bodyParser from 'body-parser';
 import docker from './docker';
 import NetworkMonitor from './network-monitor';
@@ -117,16 +118,20 @@ async function awaitDocker() {
 };
 
 async function awaitImage() {
-  while (true) {
-    console.log(`Pulling ${MONITOR_IMAGE}...`);
-    try {
-      await docker.pull(MONITOR_IMAGE);
-      console.log('Successfully pulled image.');
-      break;
+  if (PULL_MONITOR_IMAGE) {
+    while (true) {
+      console.log(`Pulling ${MONITOR_IMAGE}...`);
+      try {
+        await docker.pull(MONITOR_IMAGE);
+        console.log('Successfully pulled image.');
+        break;
+      }
+      catch(e) {
+        console.error('ERROR: Failed to pull ' + MONITOR_IMAGE);
+      }
     }
-    catch(e) {
-      console.error('ERROR: Failed to pull ' + MONITOR_IMAGE);
-    }
+  } else {
+    console.log(`Skipping pull of monitor image ${MONITOR_IMAGE}`);
   }
 }
 

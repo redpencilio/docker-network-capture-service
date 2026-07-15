@@ -1,4 +1,5 @@
 import Docker from 'dockerode';
+import { PULL_MONITOR_IMAGE } from './environment';
 
 const dockerode = new Docker({
   socketPath: process.env.CAPTURE_DOCKER_SOCKET,
