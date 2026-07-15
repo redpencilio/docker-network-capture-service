@@ -1,4 +1,4 @@
-import { app, query, sparqlEscapeUri } from 'mu';
+import { app, query, sparqlEscapeUri, beforeExit } from 'mu';
 import bodyParser from 'body-parser';
 import docker from './docker';
 import NetworkMonitor from './network-monitor';
@@ -131,7 +131,7 @@ async function awaitImage() {
 }
 
 // Remove all monitors
-async function cleanup() {
+async function removeExistingMonitors() {
   console.log("Cleaning up...");
   let tuples = [];
   for(let monitor of await NetworkMonitor.findAll("running")) {
@@ -148,18 +148,14 @@ async function cleanup() {
 };
 
 // Shut down gracefully
-async function cleanAndExit() {
+beforeExit( async () => {
+  console.log("Starting exit procedure")
   clearInterval(intervalID); // Disable sync
   exiting = true; // Stop receiving deltas
-  console.log("Signal received.");
-  try {
-    await cleanup();
-    process.exit(0);
-  } catch(error) {
-    console.error(error);
-    process.exit(1);
-  }
-}
+
+  console.log("Running clreanup.");
+  await removeExistingMonitors();
+});
 
 async function handleDelta(req, res) {
   if(exiting) {
@@ -269,9 +265,6 @@ async function isLogged(container) {
   `);
   return result.results.bindings.length > 0;
 }
-
-process.once("SIGINT", cleanAndExit);
-process.once("SIGTERM", cleanAndExit);
 
 // Delta sends messages with Content-Type: application/json rather than application/vnd.api+json
 app.post('/.mu/delta', bodyParser.json({ limit: '100mb' }), handleDelta);
