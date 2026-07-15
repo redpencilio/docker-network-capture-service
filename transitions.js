@@ -1,5 +1,5 @@
 import { app, query, uuid, sparqlEscapeString, sparqlEscapeUri } from 'mu';
-import { AUTO_RESTART_MONITOR } from './config';
+import { AUTO_RESTART_MONITOR } from './environment';
 import NetworkMonitor from './network-monitor';
 import docker from './docker';
 import events from 'events';
